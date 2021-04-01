@@ -42,7 +42,6 @@ public protocol APIClient {
     var file: FormData? { get }
     
     func execute<T: Decodable>(session: URLSession, decoder: JSONDecoder, type: T.Type) -> AnyPublisher<Response<T>, Error>
-    func execute(session: URLSession) -> AnyPublisher<Response<Any>, Error>
     func execute(session: URLSession) -> AnyPublisher<Data, Error>
 }
 
@@ -143,29 +142,6 @@ public extension APIClient {
                 .eraseToAnyPublisher()
         } else {
             return Result<Response<T>, Error>.Publisher(.failure(APIError.badRequest)).eraseToAnyPublisher()
-        }
-    }
-    
-    func execute(session: URLSession = .shared) -> AnyPublisher<Response<Any>, Error> {
-        if let request = request {
-            return session
-                .dataTaskPublisher(for: request)
-                .print("👇")
-                .tryMap { result -> Response<Any> in
-                    do {
-                        let value = try JSONSerialization.jsonObject(with: result.data, options: [])
-                        let response = Response(value: value, response: result.response)
-                        print("🟢 Response\n", response)
-                        return response
-                    } catch let error {
-                        print("🔴 Response\n", error)
-                        throw error
-                    }
-                }
-                .receive(on: DispatchQueue.main)
-                .eraseToAnyPublisher()
-        } else {
-            return Result<Response<Any>, Error>.Publisher(.failure(APIError.badRequest)).eraseToAnyPublisher()
         }
     }
     
