@@ -54,10 +54,6 @@ public extension APIClient {
         return nil
     }
     
-    var file: FormData? {
-        return nil
-    }
-    
     var bodyParameters: Any? {
         return nil
     }
@@ -68,6 +64,10 @@ public extension APIClient {
     
     var contentType: HTTPContentType {
         return .form
+    }
+    
+    var file: FormData? {
+        return nil
     }
     
     private var httpBody: Data? {
@@ -118,31 +118,30 @@ public extension APIClient {
         if let request = request {
             return session
                 .dataTaskPublisher(for: request)
-                .print("Response 👇")
-                .handleEvents(receiveOutput: { response in
-                    let json = try? JSONSerialization.jsonObject(with: response.data, options: [])
-                    print("Json 🟡",  json ?? "No Value")
+                .print("👇")
+                .handleEvents(receiveOutput: {
+                    do {
+                        let json = try JSONSerialization.jsonObject(with: $0.data, options: [])
+                        print("ℹ️ JSON\n", json )
+                    } catch let error {
+                        print("🔴 JSON\n", error)
+                    }
                 })
-                .mapError { error -> Error in
-                    print("error: ", error)
-                    return APIError.badRequest
-                }
                 .tryMap { result -> Response<T> in
                     do {
                         let value = try decoder.decode(T.self, from: result.data)
                         let response = Response(value: value, response: result.response)
-                        print("Response 🟢", response)
+                        print("🟢 Response\n", response)
                         return response
                     } catch let error {
-                        print("Error 🔴", error)
+                        print("🔴 Response\n", error)
                         throw error
                     }
                 }
                 .receive(on: DispatchQueue.main)
                 .eraseToAnyPublisher()
         } else {
-            return Result<Response<T>, Error>.Publisher(.failure(APIError.badRequest))
-                .eraseToAnyPublisher()
+            return Result<Response<T>, Error>.Publisher(.failure(APIError.badRequest)).eraseToAnyPublisher()
         }
     }
     
@@ -150,27 +149,22 @@ public extension APIClient {
         if let request = request {
             return session
                 .dataTaskPublisher(for: request)
-                .print("Response 👇")
-                .mapError { error -> Error in
-                    print("error: ", error)
-                    return APIError.badRequest
-                }
+                .print("👇")
                 .tryMap { result -> Response<Any> in
                     do {
                         let value = try JSONSerialization.jsonObject(with: result.data, options: [])
                         let response = Response(value: value, response: result.response)
-                        print("Response 🟢", response)
+                        print("🟢 Response\n", response)
                         return response
                     } catch let error {
-                        print("Error 🔴", error)
+                        print("🔴 Response\n", error)
                         throw error
                     }
                 }
                 .receive(on: DispatchQueue.main)
                 .eraseToAnyPublisher()
         } else {
-            return Result<Response<Any>, Error>.Publisher(.failure(APIError.badRequest))
-                .eraseToAnyPublisher()
+            return Result<Response<Any>, Error>.Publisher(.failure(APIError.badRequest)).eraseToAnyPublisher()
         }
     }
 }
