@@ -43,6 +43,7 @@ public protocol APIClient {
     
     func execute<T: Decodable>(session: URLSession, decoder: JSONDecoder, type: T.Type) -> AnyPublisher<Response<T>, Error>
     func execute(session: URLSession) -> AnyPublisher<Response<Any>, Error>
+    func execute(session: URLSession) -> AnyPublisher<Data, Error>
 }
 
 public extension APIClient {
@@ -165,6 +166,22 @@ public extension APIClient {
                 .eraseToAnyPublisher()
         } else {
             return Result<Response<Any>, Error>.Publisher(.failure(APIError.badRequest)).eraseToAnyPublisher()
+        }
+    }
+    
+    func execute(session: URLSession = .shared) -> AnyPublisher<Data, Error> {
+        if let request = request {
+            return session
+                .dataTaskPublisher(for: request)
+                .print("👇")
+                .tryMap { response -> Data in
+                    print("🟢 Response\n", response)
+                    return response.data
+                }
+                .receive(on: DispatchQueue.main)
+                .eraseToAnyPublisher()
+        } else {
+            return Result<Data, Error>.Publisher(.failure(APIError.badRequest)).eraseToAnyPublisher()
         }
     }
 }
