@@ -32,7 +32,7 @@ public enum APIError: Error {
 }
 
 public protocol APIClient {
-    var baseUrl: String { get }
+    var baseUrl: URL { get }
     var path: String { get }
     var queryItems: [URLQueryItem] { get }
     var headers: [String: String]? { get }
@@ -41,8 +41,8 @@ public protocol APIClient {
     var contentType: HTTPContentType { get }
     var file: FormData? { get }
     
-    func execute(session: URLSession) -> AnyPublisher<Response<Any>, Error>
     func execute<T: Decodable>(session: URLSession, decoder: JSONDecoder, type: T.Type) -> AnyPublisher<Response<T>, Error>
+    func execute(session: URLSession) -> AnyPublisher<Response<Any>, Error>
 }
 
 public extension APIClient {
@@ -51,7 +51,7 @@ public extension APIClient {
     }
     
     var headers: [String: String]? {
-        return [:]
+        return nil
     }
     
     var file: FormData? {
@@ -95,14 +95,12 @@ public extension APIClient {
     }
     
     var request: URLRequest? {
-        var urlComponents = URLComponents(string: baseUrl)
-        if !path.isEmpty {
-            urlComponents?.path = path
-        }
-        if !queryItems.isEmpty {
-            urlComponents?.queryItems = queryItems
-        }
-        guard let url = urlComponents?.url else {
+        var urlComponents = URLComponents()
+        urlComponents.scheme = baseUrl.scheme
+        urlComponents.queryItems = queryItems
+        urlComponents.host = baseUrl.host
+        urlComponents.path = baseUrl.path + path
+        guard let url = urlComponents.url else {
             return nil
         }
         var request = URLRequest(url: url)
@@ -116,37 +114,19 @@ public extension APIClient {
         return request
     }
     
-    func execute(session: URLSession = .shared) -> AnyPublisher<Response<Any>, Error> {
-        if let request = request {
-            return session
-                .dataTaskPublisher(for: request)
-                .tryMap { result -> Response<Any> in
-                    do {
-                        let value = try JSONSerialization.jsonObject(with: result.data, options: [])
-                        let response = Response(value: value, response: result.response)
-                        print("Response 🟢", response)
-                        return response
-                    } catch let error {
-                        print("Error 🔴", error)
-                        throw error
-                    }
-                }
-                .receive(on: DispatchQueue.main)
-                .eraseToAnyPublisher()
-        } else {
-            return Result<Response<Any>, Error>.Publisher(.failure(APIError.badRequest))
-                .eraseToAnyPublisher()
-        }
-    }
-    
     func execute<T: Decodable>(session: URLSession = .shared, decoder: JSONDecoder = JSONDecoder(), type: T.Type) -> AnyPublisher<Response<T>, Error> {
         if let request = request {
             return session
                 .dataTaskPublisher(for: request)
+                .print("Response 👇")
                 .handleEvents(receiveOutput: { response in
                     let json = try? JSONSerialization.jsonObject(with: response.data, options: [])
-                    print("Json 🟡", json ?? "No Value")
+                    print("Json 🟡",  json ?? "No Value")
                 })
+                .mapError { error -> Error in
+                    print("error: ", error)
+                    return APIError.badRequest
+                }
                 .tryMap { result -> Response<T> in
                     do {
                         let value = try decoder.decode(T.self, from: result.data)
@@ -162,6 +142,34 @@ public extension APIClient {
                 .eraseToAnyPublisher()
         } else {
             return Result<Response<T>, Error>.Publisher(.failure(APIError.badRequest))
+                .eraseToAnyPublisher()
+        }
+    }
+    
+    func execute(session: URLSession = .shared) -> AnyPublisher<Response<Any>, Error> {
+        if let request = request {
+            return session
+                .dataTaskPublisher(for: request)
+                .print("Response 👇")
+                .mapError { error -> Error in
+                    print("error: ", error)
+                    return APIError.badRequest
+                }
+                .tryMap { result -> Response<Any> in
+                    do {
+                        let value = try JSONSerialization.jsonObject(with: result.data, options: [])
+                        let response = Response(value: value, response: result.response)
+                        print("Response 🟢", response)
+                        return response
+                    } catch let error {
+                        print("Error 🔴", error)
+                        throw error
+                    }
+                }
+                .receive(on: DispatchQueue.main)
+                .eraseToAnyPublisher()
+        } else {
+            return Result<Response<Any>, Error>.Publisher(.failure(APIError.badRequest))
                 .eraseToAnyPublisher()
         }
     }
