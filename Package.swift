@@ -22,8 +22,5 @@ let package = Package(
         .target(
             name: "APIClient",
             dependencies: []),
-        .testTarget(
-            name: "APIClientTests",
-            dependencies: ["APIClient"]),
     ]
 )

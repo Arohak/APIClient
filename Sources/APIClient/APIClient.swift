@@ -99,6 +99,7 @@ public extension APIClient {
         urlComponents.scheme = baseUrl.scheme
         urlComponents.queryItems = queryItems
         urlComponents.host = baseUrl.host
+        urlComponents.port = baseUrl.port
         urlComponents.path = baseUrl.path + path
         guard let url = urlComponents.url else {
             return nil
