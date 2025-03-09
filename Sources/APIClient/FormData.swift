@@ -1,51 +1,79 @@
 //
 //  FormData.swift
-//  xcconfig_template
+// 
 //
-//  Created by Ara Hakobyan on 31.03.21.
-//  Copyright © 2021 Ara Hakobyan. All rights reserved.
+//  Copyright © 2025 Ara Hakobyan. All rights reserved.
 //
 
 import Foundation
 
-public struct FormData {
-    enum MimeType: String {
-        case png = "image/png"
-        case jpeg = "image/jpeg"
-        case pdf = "application/pdf"
+public struct FormData: Sendable {
+    public struct File : Sendable{
+        let data: Data
+        let key: String
+        let name: String
+        var mimeType: MimeType
         
-        var fileExtension: String {
-            switch self {
-            case .png:  return "png"
-            case .jpeg: return "jpeg"
-            case .pdf:  return "pdf"
-            }
+        public init(data: Data, key: String, name: String, mimeType: MimeType) {
+            self.data = data
+            self.key = key
+            self.name = name
+            self.mimeType = mimeType
         }
     }
     
-    var data: Data
-    var name: String
-    var dataName: String = "file"
-    var parameters: [String: String] = [:]
-    var mimeType: MimeType
+    public enum MimeType: String, Sendable {
+        case jpeg = "image/jpeg"
+        case pdf = "application/pdf"
+
+        var fileExtension: String {
+            switch self {
+            case .jpeg: return "image"
+            case .pdf: return "pdf"
+            }
+        }
+    }
+
+    var params: [String: String] = [:]
+    var files: [File] = []
+
+    public let boundary = "Boundary-\(NSUUID().uuidString)"
+
+    public var type: String { files.first?.mimeType.fileExtension ?? "" }
 
     var httpBody: Data {
         var body = Data()
-        let boundary = "Boundary-\(NSUUID().uuidString)"
-        let fullName = name + "." + mimeType.fileExtension
         let lineBreak = "\r\n"
-        for parameter in parameters {
-            body.append("--\(boundary)\r\n")
-            body.append("Content-Disposition: form-data; name=\"\(parameter.key)\"\r\n\r\n")
-            body.append("\(parameter.value)\r\n")
+        for (key, value) in params {
+            body.append("--\(boundary)\(lineBreak)")
+            body.append("Content-Disposition: form-data; name=\"\(key)\"\(lineBreak)\(lineBreak)")
+            body.append("\(value)\(lineBreak)")
         }
-        body.append("--\(boundary)\(lineBreak)".data(using: .utf8)!)
-        body.append("Content-Disposition:form-data; name=\"\(dataName)\"; filename=\"\(fullName)\"\(lineBreak)".data(using: .utf8)!)
-        body.append("Content-Type: \(mimeType.rawValue)\(lineBreak)\(lineBreak)".data(using: .utf8)!)
-        body.append(data)
-        body.append("\(lineBreak)".data(using: .utf8)!)
-        body.append("--\(boundary)--\(lineBreak)".data(using: .utf8)!)
+        for file in files {
+            body.append("--\(boundary)\(lineBreak)")
+            body.append("Content-Disposition: form-data; name=\"\(file.key)\"; filename=\"\(file.name)\"\(lineBreak)")
+            body.append("Content-Type: \(file.mimeType.rawValue)\(lineBreak)\(lineBreak)")
+            body.append(file.data)
+            body.append(lineBreak)
+        }
+        body.append("--\(boundary)--\(lineBreak)")
         return body
+    }
+
+    public init(params: [String: String] = [:], data: Data? = nil, mimeType: MimeType? = nil) {
+        self.params = params
+        if let data {
+            let mimeType = mimeType ?? .jpeg
+            let name = "\(Int(Date().timeIntervalSince1970 * 1_000_000)).\(mimeType.fileExtension)"
+            let file = File(data: data, key: "file", name: name, mimeType: mimeType)
+            self.files = [file]
+        }
+    }
+}
+
+extension FormData {
+    public init(files: [File]) {
+        self.files = files
     }
 }
 
